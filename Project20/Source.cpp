@@ -7,7 +7,7 @@
 #include <string>
 #include <mutex>
 using namespace std;
-template <typename T,typename R>
+template <typename T, typename R>
 class IFluentProperty {
 public:
 	typedef function<T(void)> void_generator_t;
@@ -19,7 +19,7 @@ public:
 	virtual R& set(void_generator_t generator) = 0;
 	virtual R& set(value_mutator_t mutator) = 0;
 	virtual R& use(value_manipulator_t manipulator) = 0;
-	
+
 	virtual R& operator<<(void_generator_t generator) {
 		return set(generator);
 	}
@@ -43,11 +43,11 @@ public:
 };
 
 template <typename T>
-class BasicFluentProperty:public IFluentProperty<T,BasicFluentProperty<T>> {
+class BasicFluentProperty :public IFluentProperty<T, BasicFluentProperty<T>> {
 private:
 	T _value;
 public:
-	virtual T& get() override{
+	virtual T& get() override {
 		return _value;
 	}
 	virtual const T& get() const override {
@@ -81,49 +81,44 @@ public:
 		return _value;
 	}
 	virtual const T& get() const override {
-
 		lock_guard<mutex> lock(_sync);
 		return _value;
-	};
-	virtual SycnedFluentProperty& set(T value) {
-
+	}
+	virtual SyncedFluentProperty& set(T value) override {
 		lock_guard<mutex> lock(_sync);
 		_value = value;
 		return *this;
 	}
-	virtual SycnedFluentProperty& set(void_generator_t generator) {
-
+	virtual SyncedFluentProperty& set(void_generator_t generator) {
 		lock_guard<mutex> lock(_sync);
 		_value = generator();
 		return *this;
-	};
-	virtual SycnedFluentProperty& set(value_mutator_t mutator) {
-
+	}
+	virtual SyncedFluentProperty& set(value_mutator_t mutator) {
 		lock_guard<mutex> lock(_sync);
 		_value = mutator(_value);
 		return *this;
-	};
-	virtual SycnedFluentProperty& use(value_manipulator_t manipulator) {
-
+	}
+	virtual SyncedFluentProperty& use(value_manipulator_t manipulator) {
 		lock_guard<mutex> lock(_sync);
 		manipulator(_value);
 		return *this;
-	};
+	}
 };
-template <typename K,typename T, typename R>
+template <typename K, typename T, typename R>
 class IFluentMap {
 public:
 	struct destroyer_t {} erase;
-	
+
 	typedef function<T(void)> void_generator_t;
 	typedef function<T(K)> key_generator_t;
 	typedef function<T(T const&)> value_mutator_t;
-	typedef function<T(K,T const&)> keyvalue_mutator_t;
+	typedef function<T(K, T const&)> keyvalue_mutator_t;
 	typedef function<T(tuple<K, T const&>)> tuple_mutator_t;
 	typedef function<void(T&)> value_manipulator_t;
 	typedef function<void(K, T&)> keyvalue_manipulator_t;
 	typedef function<void(tuple<K, T&>)> tuple_manipulator_t;
-	
+
 	typedef tuple<K, T> set_direct_op;
 	typedef tuple<K, void_generator_t> set_generate_op;
 	typedef tuple<K, key_generator_t> set_kgenerate_op;
@@ -150,7 +145,7 @@ public:
 	virtual R& use(K, tuple_manipulator_t) = 0;
 	virtual R& del(K) = 0;
 	virtual R& del(del_op) = 0;
-	
+
 	virtual R& operator<<(set_direct_op op) {
 		return set(std::get<0>(op), std::get<1>(op));
 	}
@@ -189,7 +184,7 @@ public:
 
 
 };
-template <typename K,typename T>
+template <typename K, typename T>
 class FluentMap :public IFluentMap<K, T, FluentMap<K, T>> {
 private:
 	unordered_map<K, T> _items;
@@ -205,11 +200,11 @@ public:
 		return _items.at(key);
 	}
 	virtual const T& get(K key) const { return _items.at(key); }
-	virtual FluentMap<K,T>& set(K key, void_generator_t generator) {
+	virtual FluentMap<K, T>& set(K key, void_generator_t generator) {
 		_items[key] = generator();
 		return *this;
 	}
-	virtual FluentMap<K,T>& set(K key, T const& value) {
+	virtual FluentMap<K, T>& set(K key, T const& value) {
 		_items[key] = value;
 		return *this;
 	}
@@ -225,7 +220,7 @@ public:
 		_items.at(key) = mutator(key, _items.at(key));
 		return *this;
 	}
-	virtual FluentMap<K, T>& set(K key,tuple_mutator_t mutator) {
+	virtual FluentMap<K, T>& set(K key, tuple_mutator_t mutator) {
 		_items.at(key) = mutator(make_tuple(key, _items.at(key)));
 		return *this;
 	}
@@ -234,7 +229,7 @@ public:
 		return *this;
 	}
 	virtual FluentMap<K, T>& use(K key, keyvalue_manipulator_t manipulator) {
-		manipulator(key,_items.at(key));
+		manipulator(key, _items.at(key));
 		return *this;
 	}
 	virtual FluentMap<K, T>& use(K key, tuple_manipulator_t manipulator) {
@@ -250,10 +245,33 @@ public:
 		return *this;
 	}
 };
+
+template<class... _Types>
+constexpr tuple<typename _Unrefwrap<_Types>::type...>
+fm_set(_Types&&... _Args)
+{	// make tuple from elements
+	typedef tuple<typename _Unrefwrap<_Types>::type...> _Ttype;
+	return (_Ttype(_STD forward<_Types>(_Args)...));
+}
+template<class... _Types>
+constexpr tuple<typename _Unrefwrap<_Types>::type...>
+fm_use(_Types&&... _Args)
+{	// make tuple from elements
+	typedef tuple<typename _Unrefwrap<_Types>::type...> _Ttype;
+	return (_Ttype(_STD forward<_Types>(_Args)...));
+}
+template<class... _Types>
+constexpr tuple<typename _Unrefwrap<_Types>::type...>
+fm_del(_Types&&... _Args)
+{	// make tuple from elements
+	typedef tuple<typename _Unrefwrap<_Types>::type...> _Ttype;
+	return (_Ttype(_STD forward<_Types>(_Args)...));
+}
+
 int main() {
 	BasicFluentProperty<int> property;
 	auto print = [](int value) {cout << value << endl; };
-	auto print2 = [](string key,int value) {cout <<key<<","<< value << endl; };
+	auto print2 = [](string key, int value) {cout << key << "," << value << endl; };
 
 	property
 		.set(1)
@@ -279,13 +297,13 @@ int main() {
 
 	BasicFluentProperty<BasicFluentProperty<int>> weird;
 	weird
-		<< (BasicFluentProperty<int>()<<1)
+		<< (BasicFluentProperty<int>() << 1)
 		>> [print](BasicFluentProperty<int> prop) {prop >> print; }
-		>> [](BasicFluentProperty<int> & prop) {prop << 4; }
-		>> [print](BasicFluentProperty<int> prop) {prop >> print; };
+	>> [](BasicFluentProperty<int> & prop) {prop << 4; }
+	>> [print](BasicFluentProperty<int> prop) {prop >> print; };
 
 
-	FluentMap<string,int> map;
+	FluentMap<string, int> map;
 
 	map
 		.set("A", 0)
@@ -300,27 +318,27 @@ int main() {
 		.use("B", print2);
 
 	map
-		<< make_tuple("A",0)
-		>> make_tuple("A",print2)
-		<< make_tuple("B", []() {return 1; })
-		>> make_tuple("B", print2)
-		<< make_tuple("C", [](string key) {return 2; })
-		>> make_tuple("C", print2)
-		<< make_tuple("A", [](int i) {return i + 1; })
-		>> make_tuple("A", print2)
-		<< make_tuple("B", [](string k, int i) {return i + 1; })
-		>> make_tuple("B", print2);
+		<< fm_set("A", 0)
+		>> fm_use("A", print2)
+		<< fm_set("B", []() {return 1; })
+		>> fm_use("B", print2)
+		<< fm_set("C", [](string key) {return 2; })
+		>> fm_use("C", print2)
+		<< fm_set("A", [](int i) {return i + 1; })
+		>> fm_use("A", print2)
+		<< fm_set("B", [](string k, int i) {return i + 1; })
+		>> fm_use("B", print2);
 
 	FluentMap<string, BasicFluentProperty<int>> stranger;
 	stranger
 		.set("A", BasicFluentProperty<int>() << 4)
 		.set("B", BasicFluentProperty<int>() << 5)
-		.set("C", BasicFluentProperty<int>() <<6);
+		.set("C", BasicFluentProperty<int>() << 6);
 	for (auto key : stranger.keys()) {
 		stranger.use(key, [key](BasicFluentProperty<int>& prop) {
 			prop >> [key](int i) {cout << key << "," << i << endl; };
 		});
-			
+
 	}
 
 	cin.get();
